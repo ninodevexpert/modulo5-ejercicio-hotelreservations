@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asistente de Reservas</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="reservation-panel" aria-label="Resumen de reserva">
+        <h1>Hotel Assistant</h1>
+        <p class="panel-subtitle">Base UI para el flujo con function calling.</p>
+
+        <section class="summary-card">
+          <h2>Resumen de reserva</h2>
+          <dl id="reservationSummary">
+            <div>
+              <dt>Ciudad</dt>
+              <dd data-field="city">Pendiente</dd>
+            </div>
+            <div>
+              <dt>Check-in</dt>
+              <dd data-field="checkIn">Pendiente</dd>
+            </div>
+            <div>
+              <dt>Check-out</dt>
+              <dd data-field="checkOut">Pendiente</dd>
+            </div>
+            <div>
+              <dt>Huéspedes</dt>
+              <dd data-field="guests">Pendiente</dd>
+            </div>
+            <div>
+              <dt>Hotel</dt>
+              <dd data-field="hotel">Pendiente</dd>
+            </div>
+            <div>
+              <dt>Tipo de habitación</dt>
+              <dd data-field="roomType">Pendiente</dd>
+            </div>
+            <div>
+              <dt>Noches</dt>
+              <dd data-field="nights">Pendiente</dd>
+            </div>
+            <div>
+              <dt>Precio estimado</dt>
+              <dd data-field="estimatedPrice">Pendiente</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="status-card">
+          <h3>Estado actual</h3>
+          <p id="assistantStatus">Esperando consulta del usuario.</p>
+        </section>
+      </aside>
+
+      <main class="chat-panel" aria-label="Chat asistente">
+        <header class="chat-header">
+          <div>
+            <p class="eyebrow">Asistente virtual</p>
+            <h2>Reserva tu hotel</h2>
+          </div>
+          <span class="temperature-badge">Temp: 0.3</span>
+        </header>
+
+        <section id="chatMessages" class="chat-messages" aria-live="polite"></section>
+
+        <div class="quick-actions" aria-label="Sugerencias rápidas">
+          <button type="button" data-prompt="Quiero un hotel en Madrid del 20 al 23 de marzo para 2 personas.">Madrid · 2 huéspedes</button>
+          <button type="button" data-prompt="Busco habitación doble en Barcelona del 5 al 7 de abril.">Barcelona · Doble</button>
+          <button type="button" data-prompt="Necesito una suite en Valencia para 3 noches.">Valencia · Suite</button>
+        </div>
+
+        <form id="chatForm" class="chat-input" autocomplete="off">
+          <label for="messageInput" class="sr-only">Escribe tu mensaje</label>
+          <input
+            id="messageInput"
+            name="message"
+            type="text"
+            placeholder="Ej: Quiero reservar en Sevilla del 10 al 13 para 2 huéspedes"
+            required
+          />
+          <button type="submit">Enviar</button>
+        </form>
+      </main>
+    </div>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

@@ -13,45 +13,185 @@ const summaryState = {
   roomType: "Pendiente",
   nights: "Pendiente",
   estimatedPrice: "Pendiente",
+  reservationId: "Pendiente",
+  status: "Pendiente",
 };
 
-addMessage(
-  "assistant",
-  "Hola, soy tu asistente de reservas. Puedo ayudarte a encontrar hotel, estimar precio y preparar la confirmación."
-);
+const chatState = {
+  isSending: false,
+  previousResponseId: null,
+};
 
-chatForm.addEventListener("submit", (event) => {
+if (window.location.protocol === "file:") {
+  addMessage(
+    "assistant",
+    "Esta app requiere servidor HTTP. Ejecuta `npm install` y `npm run dev`, luego abre http://localhost:3000."
+  );
+  assistantStatus.textContent = "Error de entorno: estás usando file:// en lugar de http://localhost:3000.";
+  setInputEnabled(false);
+} else {
+  addMessage(
+    "assistant",
+    "Hola, soy tu asistente de reservas. Pídeme disponibilidad, precios o confirmación y usaré function calling en backend."
+  );
+}
+
+renderSummary();
+
+chatForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = messageInput.value.trim();
-  if (!message) return;
+  if (!message || chatState.isSending) return;
 
-  handleUserMessage(message);
   messageInput.value = "";
+  await handleUserMessage(message);
 });
 
 quickActions.forEach((button) => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
+    if (chatState.isSending) return;
     const prompt = button.dataset.prompt;
-    handleUserMessage(prompt);
+    await handleUserMessage(prompt);
   });
 });
 
-function handleUserMessage(message) {
+async function handleUserMessage(message) {
+  chatState.isSending = true;
+  setInputEnabled(false);
+
   addMessage("user", message);
-  updateSummaryFromText(message);
+  const assistantMessageId = addMessage("assistant typing", "");
+  setMessageText(assistantMessageId, "Escribiendo...");
+  assistantStatus.textContent = "Enviando consulta al servidor...";
+
+  try {
+    const response = await fetch("/api/chat/stream", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message,
+        previousResponseId: chatState.previousResponseId,
+      }),
+    });
+
+    if (!response.ok || !response.body) {
+      throw new Error("No se pudo abrir el stream de respuesta.");
+    }
+
+    await consumeNdjsonStream(response.body, (event) => {
+      handleServerEvent(event, assistantMessageId);
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Error inesperado en cliente.";
+    setMessageClass(assistantMessageId, "assistant");
+    setMessageText(assistantMessageId, `Error: ${errorMessage}`);
+    assistantStatus.textContent = "Error al procesar el turno.";
+  } finally {
+    chatState.isSending = false;
+    setInputEnabled(true);
+    messageInput.focus();
+  }
+}
+
+async function consumeNdjsonStream(stream, onEvent) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const parsed = JSON.parse(line);
+      onEvent(parsed);
+    }
+  }
+
+  if (buffer.trim()) {
+    onEvent(JSON.parse(buffer));
+  }
+}
+
+function handleServerEvent(event, assistantMessageId) {
+  switch (event.type) {
+    case "status": {
+      assistantStatus.textContent = event.message;
+      break;
+    }
+
+    case "tool": {
+      assistantStatus.textContent = `Ejecutando tool: ${event.tool}`;
+      break;
+    }
+
+    case "delta": {
+      setMessageClass(assistantMessageId, "assistant");
+      appendMessageText(assistantMessageId, event.delta);
+      break;
+    }
+
+    case "done": {
+      chatState.previousResponseId = event.responseId || null;
+      if (!getMessageText(assistantMessageId).trim()) {
+        setMessageClass(assistantMessageId, "assistant");
+        setMessageText(assistantMessageId, event.fullText || "Sin respuesta.");
+      }
+
+      applySummary(event.summary);
+      assistantStatus.textContent = "Turno completado. Listo para continuar.";
+      break;
+    }
+
+    case "error": {
+      setMessageClass(assistantMessageId, "assistant");
+      setMessageText(assistantMessageId, `Error: ${event.message}`);
+      assistantStatus.textContent = "Error en el servidor.";
+      break;
+    }
+
+    default:
+      break;
+  }
+}
+
+function applySummary(summary) {
+  if (!summary || typeof summary !== "object") return;
+
+  summaryState.city = safeValue(summary.city);
+  summaryState.checkIn = safeValue(summary.checkIn);
+  summaryState.checkOut = safeValue(summary.checkOut);
+  summaryState.guests = safeValue(summary.guests);
+  summaryState.hotel = safeValue(summary.hotel);
+  summaryState.roomType = safeValue(summary.roomType);
+  summaryState.nights = safeValue(summary.nights);
+  summaryState.estimatedPrice = safeValue(summary.estimatedPrice);
+  summaryState.reservationId = safeValue(summary.reservationId);
+  summaryState.status = safeValue(summary.status);
+
   renderSummary();
+}
 
-  assistantStatus.textContent = "Procesando solicitud del usuario (simulado UI).";
+function safeValue(value) {
+  if (value === null || value === undefined || String(value).trim() === "") {
+    return "Pendiente";
+  }
+  return String(value);
+}
 
-  const typingId = addMessage("assistant typing", "Escribiendo respuesta...");
-  window.setTimeout(() => {
-    removeMessage(typingId);
-
-    const reply = buildAssistantReply(message);
-    addMessage("assistant", reply);
-
-    assistantStatus.textContent = "Respuesta generada. Listo para siguiente interacción.";
-  }, 500);
+function renderSummary() {
+  const fields = document.querySelectorAll("[data-field]");
+  fields.forEach((field) => {
+    const key = field.dataset.field;
+    field.textContent = summaryState[key] || "Pendiente";
+  });
 }
 
 function addMessage(roleClass, text) {
@@ -66,82 +206,32 @@ function addMessage(roleClass, text) {
   return id;
 }
 
-function removeMessage(messageId) {
+function setMessageText(messageId, text) {
   const node = document.getElementById(messageId);
-  if (node) node.remove();
+  if (!node) return;
+  node.textContent = text;
+  chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-function updateSummaryFromText(text) {
-  const normalized = text.toLowerCase();
-
-  const cityMatch = normalized.match(
-    /(madrid|barcelona|valencia|sevilla|málaga|bilbao|granada|zaragoza)/i
-  );
-  if (cityMatch) {
-    summaryState.city = capitalize(cityMatch[0]);
-  }
-
-  const guestsMatch = normalized.match(/(\d+)\s*(hu[eé]spedes|personas?)/i);
-  if (guestsMatch) {
-    summaryState.guests = guestsMatch[1];
-  }
-
-  if (/suite/i.test(normalized)) {
-    summaryState.roomType = "Suite";
-  } else if (/doble/i.test(normalized)) {
-    summaryState.roomType = "Doble";
-  } else if (/individual|single/i.test(normalized)) {
-    summaryState.roomType = "Individual";
-  }
-
-  const nightsMatch = normalized.match(/(\d+)\s*noches?/i);
-  if (nightsMatch) {
-    summaryState.nights = nightsMatch[1];
-    summaryState.estimatedPrice = `${Number(nightsMatch[1]) * 110} € (estimado)`;
-  }
-
-  const dayMonthRange = normalized.match(/del\s+(\d{1,2})\s+al\s+(\d{1,2})/i);
-  if (dayMonthRange) {
-    summaryState.checkIn = `${dayMonthRange[1]} (por definir mes)`;
-    summaryState.checkOut = `${dayMonthRange[2]} (por definir mes)`;
-
-    const nights = Number(dayMonthRange[2]) - Number(dayMonthRange[1]);
-    if (nights > 0) {
-      summaryState.nights = String(nights);
-      summaryState.estimatedPrice = `${nights * 110} € (estimado)`;
-    }
-  }
-
-  if (summaryState.city !== "Pendiente" && summaryState.hotel === "Pendiente") {
-    summaryState.hotel = `Hotel Central ${summaryState.city}`;
-  }
+function appendMessageText(messageId, text) {
+  const node = document.getElementById(messageId);
+  if (!node) return;
+  node.textContent += text;
+  chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-function renderSummary() {
-  const fields = document.querySelectorAll("[data-field]");
-  fields.forEach((field) => {
-    const key = field.dataset.field;
-    field.textContent = summaryState[key];
-  });
+function getMessageText(messageId) {
+  const node = document.getElementById(messageId);
+  return node ? node.textContent : "";
 }
 
-function buildAssistantReply(message) {
-  const cityText =
-    summaryState.city !== "Pendiente"
-      ? `en ${summaryState.city}`
-      : "en la ciudad que prefieras";
-
-  if (/precio|coste|cu[aá]nto/i.test(message)) {
-    return `Puedo mostrarte un estimado ${cityText}. En esta UI solo simulamos el cálculo; luego conectaremos get_room_price.`;
-  }
-
-  if (/confirm|reserv|crear/i.test(message)) {
-    return "Perfecto. En esta fase la confirmación es visual: el siguiente paso será conectar create_reservation en backend.";
-  }
-
-  return `Te ayudo con disponibilidad ${cityText}. Esta vista ya representa el flujo conversacional; después integraremos check_availability y el resto de funciones.`;
+function setMessageClass(messageId, roleClass) {
+  const node = document.getElementById(messageId);
+  if (!node) return;
+  node.className = `message ${roleClass}`;
 }
 
-function capitalize(text) {
-  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+function setInputEnabled(enabled) {
+  messageInput.disabled = !enabled;
+  chatForm.querySelector("button[type='submit']").disabled = !enabled;
 }

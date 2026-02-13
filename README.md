@@ -2,25 +2,61 @@
 
 Edición 2: Ejercicio 1 Reserva de hoteles.
 
-## Estado actual (fase 1)
+## Implementación actual (rama `codex/end-exercise`)
 
-Implementación de **solo UI** para un asistente de reservas hoteleras:
+Se integró una versión funcional del ejercicio usando **OpenAI Responses API** con:
 
-- Chat conversacional (usuario/asistente)
-- Respuestas simuladas para flujo de disponibilidad, precio y confirmación
-- Panel lateral de resumen de reserva que se actualiza desde el texto del chat
-- Acciones rápidas para iniciar conversaciones de ejemplo
+- Function calling real en backend
+- Flujo conversacional multi-turn con `previous_response_id`
+- Streaming de respuesta al frontend (NDJSON)
+- Structured Output (`json_schema`) para resumen de reserva
+- UI de chat conectada al backend
 
-No hay integración con backend, OpenAI API ni function calling real todavía.
+## Herramientas del ejercicio implementadas
 
-## Ejecutar la UI
+- `check_availability(city, check_in, check_out, guests)`
+- `get_room_price(room_type, nights)`
+- `create_reservation(hotel, guest_info, dates)`
 
-Como es una UI en HTML/CSS/JS vanilla, puedes abrir `index.html` directamente en el navegador.
+Estas tools están implementadas en `server.js` con datos mock en memoria para practicar el flujo completo sin base de datos.
 
-También puedes levantar un servidor estático simple desde la carpeta del proyecto, por ejemplo:
+## Configuración
+
+1. Instala dependencias:
 
 ```bash
-python3 -m http.server 8080
+npm install
 ```
 
-Y abrir `http://localhost:8080`.
+2. Edita `.env` y agrega tu API key:
+
+```env
+OPENAI_API_KEY=tu_api_key_aqui
+OPENAI_MODEL=gpt-5-mini
+PORT=3000
+```
+
+3. Levanta el servidor:
+
+```bash
+npm run dev
+```
+
+4. Abre en navegador:
+
+- `http://localhost:3000`
+
+## Estructura relevante
+
+- `server.js`: backend Express + integración Responses API
+- `index.html`: estructura de la UI
+- `styles.css`: estilos
+- `app.js`: cliente del chat con consumo de stream
+- `.env.example`: ejemplo de variables de entorno
+
+## Notas de implementación
+
+- `temperature` objetivo `0.3` para priorizar precisión (se envía solo en modelos que soportan ese parámetro).
+- La UI consume `POST /api/chat/stream` y renderiza deltas en tiempo real.
+- El resumen lateral se llena desde Structured Output, no desde regex local.
+- Todo el código clave de API está comentado para facilitar el aprendizaje.

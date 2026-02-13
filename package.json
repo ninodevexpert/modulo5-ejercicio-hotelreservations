@@ -1,0 +1,15 @@
+{
+  "name": "modulo5-ejercicio-hotelreservations",
+  "version": "1.0.0",
+  "description": "Ejercicio 1 - Asistente de reservas con OpenAI Responses API y function calling",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "openai": "^6.3.0"
+  }
+}

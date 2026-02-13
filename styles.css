@@ -230,6 +230,12 @@ body {
   background: #0b529f;
 }
 
+.chat-input input:disabled,
+.chat-input button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

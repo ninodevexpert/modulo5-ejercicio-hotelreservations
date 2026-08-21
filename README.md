@@ -12,6 +12,8 @@ Implementación completa del flujo conversacional con:
 - Soporte multi-turn con `previous_response_id`
 - Streaming al frontend mediante NDJSON
 - Structured Output (`json_schema`) para resumen consistente
+- Tools estrictas y resultados enlazados mediante `call_id`
+- Límite explícito de rondas y ejecución transaccional no paralela
 
 ## Funciones del ejercicio implementadas
 
@@ -20,6 +22,13 @@ Implementación completa del flujo conversacional con:
 - `create_reservation(hotel, guest_info, dates)`
 
 Se usan datos mock en memoria para practicar el flujo completo sin base de datos.
+
+El loop sigue el flujo recomendado en la documentación oficial: solicitar una
+respuesta con tools, detectar elementos `function_call`, ejecutar cada función,
+devolver un `function_call_output` con el mismo `call_id` y continuar mediante
+`previous_response_id` hasta obtener la respuesta final.
+
+Referencia: [Function calling — documentación oficial de OpenAI](https://developers.openai.com/api/docs/guides/function-calling).
 
 ## Stack
 
@@ -68,6 +77,8 @@ npm run dev
 - Temperatura objetivo `0.3` para precisión; solo se envía si el modelo soporta `temperature`.
 - Si el modelo no soporta `temperature` (por ejemplo algunos `gpt-5`), la app evita el error 400 omitiendo ese parámetro.
 - Los schemas de tools están en modo estricto (`strict: true`) y con `required` compatibles.
+- Cada objeto de los schemas usa `additionalProperties: false`.
+- `parallel_tool_calls: false` evita duplicar acciones transaccionales de reserva.
 - El resumen lateral del chat se alimenta desde Structured Output, no por parsing manual de texto libre.
 
 ## Troubleshooting

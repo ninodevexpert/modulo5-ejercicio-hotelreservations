@@ -8,6 +8,7 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
 const TARGET_TEMPERATURE = Number(process.env.OPENAI_TEMPERATURE || 0.3);
+const MAX_TOOL_ROUNDS = 8;
 
 // Cliente oficial de OpenAI. Lee OPENAI_API_KEY desde .env
 const openai = new OpenAI({
@@ -53,6 +54,12 @@ Reglas operativas:
 3) Si el usuario confirma reserva y ya hay datos suficientes, usa create_reservation.
 4) Si faltan datos, pregunta de forma concreta qué falta (ciudad, fechas, huéspedes, huésped principal, etc.).
 5) Responde claro y breve, evitando inventar resultados fuera de las herramientas.
+6) Estructura la respuesta en Markdown legible:
+   - Separa introducción, resultados y siguiente paso con líneas en blanco.
+   - Presenta hoteles u opciones mediante listas con guiones.
+   - Presenta los datos que faltan mediante una lista numerada.
+   - Usa **negrita** para nombres de hotel, precios y acciones importantes.
+   - No uses tablas.
 `;
 
 // Definición de tools para Responses API (function calling).
@@ -69,7 +76,11 @@ const TOOLS = [
         city: { type: "string", description: "Ciudad destino, por ejemplo Madrid" },
         check_in: { type: "string", description: "Fecha de entrada en formato YYYY-MM-DD" },
         check_out: { type: "string", description: "Fecha de salida en formato YYYY-MM-DD" },
-        guests: { type: "number", description: "Número de huéspedes" },
+        guests: {
+          type: "integer",
+          minimum: 1,
+          description: "Número total de huéspedes, como entero positivo",
+        },
       },
       required: ["city", "check_in", "check_out", "guests"],
       additionalProperties: false,
@@ -88,7 +99,11 @@ const TOOLS = [
           enum: ["individual", "doble", "suite"],
           description: "Tipo de habitación",
         },
-        nights: { type: "number", description: "Cantidad de noches" },
+        nights: {
+          type: "integer",
+          minimum: 1,
+          description: "Cantidad de noches, como entero positivo",
+        },
       },
       required: ["room_type", "nights"],
       additionalProperties: false,
@@ -106,9 +121,9 @@ const TOOLS = [
         guest_info: {
           type: "object",
           properties: {
-            name: { type: "string" },
-            email: { type: "string" },
-            phone: { type: "string" },
+            name: { type: "string", description: "Nombre completo del huésped principal" },
+            email: { type: "string", description: "Correo del huésped principal" },
+            phone: { type: "string", description: "Teléfono de contacto" },
           },
           required: ["name", "email", "phone"],
           additionalProperties: false,
@@ -116,8 +131,8 @@ const TOOLS = [
         dates: {
           type: "object",
           properties: {
-            check_in: { type: "string" },
-            check_out: { type: "string" },
+            check_in: { type: "string", description: "Fecha de entrada en formato YYYY-MM-DD" },
+            check_out: { type: "string", description: "Fecha de salida en formato YYYY-MM-DD" },
           },
           required: ["check_in", "check_out"],
           additionalProperties: false,
@@ -171,22 +186,30 @@ function calculateNights(checkIn, checkOut) {
   const inDate = parseDate(checkIn);
   const outDate = parseDate(checkOut);
 
-  if (!inDate || !outDate) return 1;
+  if (!inDate || !outDate) return null;
   const diffMs = outDate.getTime() - inDate.getTime();
-  const nights = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-  return nights > 0 ? nights : 1;
+  const nights = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  return nights > 0 ? nights : null;
 }
 
 // Implementación local de las tools del ejercicio.
 function checkAvailability({ city, check_in, check_out, guests }) {
   const key = normalizeCity(city);
-  const hotels = HOTEL_CATALOG[key] || [];
+  const totalGuests = Number(guests);
   const nights = calculateNights(check_in, check_out);
+
+  if (!key) throw new Error("La ciudad es obligatoria.");
+  if (!nights) throw new Error("Las fechas no son válidas o el check-out no es posterior al check-in.");
+  if (!Number.isInteger(totalGuests) || totalGuests < 1) {
+    throw new Error("El número de huéspedes debe ser un entero positivo.");
+  }
+
+  const hotels = HOTEL_CATALOG[key] || [];
 
   const availability = hotels.map((item) => ({
     hotel: item.hotel,
     room_type: item.room_type,
-    available: item.rooms_left >= Number(guests || 1),
+    available: item.rooms_left > 0,
     price_per_night: item.price_per_night,
     total_estimated: item.price_per_night * nights,
   }));
@@ -195,7 +218,7 @@ function checkAvailability({ city, check_in, check_out, guests }) {
     city,
     check_in,
     check_out,
-    guests,
+    guests: totalGuests,
     nights,
     hotels_found: availability.length,
     availability,
@@ -204,8 +227,16 @@ function checkAvailability({ city, check_in, check_out, guests }) {
 
 function getRoomPrice({ room_type, nights }) {
   const normalizedRoom = String(room_type || "").toLowerCase();
-  const pricePerNight = ROOM_BASE_PRICE[normalizedRoom] || ROOM_BASE_PRICE.doble;
-  const totalNights = Number(nights || 1);
+  const totalNights = Number(nights);
+
+  if (!Object.hasOwn(ROOM_BASE_PRICE, normalizedRoom)) {
+    throw new Error("El tipo de habitación no está disponible.");
+  }
+  if (!Number.isInteger(totalNights) || totalNights < 1) {
+    throw new Error("El número de noches debe ser un entero positivo.");
+  }
+
+  const pricePerNight = ROOM_BASE_PRICE[normalizedRoom];
 
   return {
     room_type: normalizedRoom,
@@ -217,6 +248,14 @@ function getRoomPrice({ room_type, nights }) {
 }
 
 function createReservation({ hotel, guest_info, dates }) {
+  if (!String(hotel || "").trim()) throw new Error("El hotel es obligatorio.");
+  if (!guest_info?.name || !guest_info?.email || !guest_info?.phone) {
+    throw new Error("Faltan datos del huésped principal.");
+  }
+  if (!calculateNights(dates?.check_in, dates?.check_out)) {
+    throw new Error("Las fechas de la reserva no son válidas.");
+  }
+
   const reservationId = `RSV-${Date.now().toString().slice(-8)}`;
 
   return {
@@ -240,6 +279,45 @@ function safeJsonParse(text, fallback = {}) {
     return JSON.parse(text);
   } catch {
     return fallback;
+  }
+}
+
+function parseToolArguments(call) {
+  try {
+    return JSON.parse(call.arguments);
+  } catch {
+    throw new Error(`Argumentos JSON no válidos para la tool ${call.name}.`);
+  }
+}
+
+async function executeFunctionCall(call) {
+  const handler = TOOL_HANDLERS[call.name];
+
+  if (!handler) {
+    return {
+      tool: call.name,
+      arguments: {},
+      result: { ok: false, error: `Tool no implementada: ${call.name}` },
+    };
+  }
+
+  try {
+    const args = parseToolArguments(call);
+    const data = await handler(args);
+    return {
+      tool: call.name,
+      arguments: args,
+      result: { ok: true, data },
+    };
+  } catch (error) {
+    return {
+      tool: call.name,
+      arguments: safeJsonParse(call.arguments, {}),
+      result: {
+        ok: false,
+        error: error instanceof Error ? error.message : "Error desconocido al ejecutar la tool.",
+      },
+    };
   }
 }
 
@@ -291,64 +369,72 @@ function withModelOptions(payload) {
   return payload;
 }
 
-async function runAssistantWithFunctionCalling({ userMessage, previousResponseId, onToolEvent }) {
-  // Primera llamada al modelo con tools habilitadas.
-  let response = await openai.responses.create(withModelOptions({
+function buildFunctionCallingRequest({ input, previousResponseId }) {
+  return withModelOptions({
     model: MODEL,
     instructions: ASSISTANT_INSTRUCTIONS,
-    input: userMessage,
+    input,
     previous_response_id: previousResponseId || undefined,
     tools: TOOLS,
-  }));
+    tool_choice: "auto",
+    // Una reserva es una acción transaccional. Desactivar llamadas paralelas evita
+    // que el modelo intente crear más de una reserva dentro de la misma respuesta.
+    parallel_tool_calls: false,
+    store: true,
+  });
+}
 
-  let guard = 0;
-  while (guard < 8) {
+async function runAssistantWithFunctionCalling({
+  userMessage,
+  previousResponseId,
+  onToolEvent,
+  client = openai,
+}) {
+  let response = await client.responses.create(
+    buildFunctionCallingRequest({
+      input: [{ role: "user", content: userMessage }],
+      previousResponseId,
+    })
+  );
+
+  let completedToolRounds = 0;
+
+  while (true) {
     const functionCalls = extractFunctionCalls(response);
     if (functionCalls.length === 0) {
-      // Cuando no hay function calls pendientes, ya tenemos respuesta final del asistente.
       return response;
     }
 
+    if (completedToolRounds >= MAX_TOOL_ROUNDS) {
+      throw new Error(
+        `Se alcanzó el límite de ${MAX_TOOL_ROUNDS} rondas de function calling.`
+      );
+    }
+
     const toolOutputs = [];
-
     for (const call of functionCalls) {
-      const handler = TOOL_HANDLERS[call.name];
-      const args = safeJsonParse(call.arguments, {});
-
-      const result = handler
-        ? handler(args)
-        : { error: `Tool no implementada: ${call.name}` };
+      const execution = await executeFunctionCall(call);
 
       if (onToolEvent) {
-        onToolEvent({
-          tool: call.name,
-          arguments: args,
-          result,
-        });
+        onToolEvent(execution);
       }
 
-      // Este objeto "function_call_output" es la pieza clave de Responses API
-      // para devolver al modelo el resultado de la tool ejecutada en nuestro backend.
       toolOutputs.push({
         type: "function_call_output",
         call_id: call.call_id,
-        output: JSON.stringify(result),
+        output: JSON.stringify(execution.result),
       });
     }
 
-    // Siguiente vuelta: el modelo recibe outputs de tools y decide si responde o llama más tools.
-    response = await openai.responses.create(withModelOptions({
-      model: MODEL,
-      instructions: ASSISTANT_INSTRUCTIONS,
-      previous_response_id: response.id,
-      input: toolOutputs,
-      tools: TOOLS,
-    }));
+    response = await client.responses.create(
+      buildFunctionCallingRequest({
+        input: toolOutputs,
+        previousResponseId: response.id,
+      })
+    );
 
-    guard += 1;
+    completedToolRounds += 1;
   }
-
-  throw new Error("Se alcanzó el límite de iteraciones del loop de function calling.");
 }
 
 async function buildStructuredReservationSummary({ userMessage, assistantReply, toolTrace }) {
@@ -372,6 +458,7 @@ async function buildStructuredReservationSummary({ userMessage, assistantReply, 
         schema: RESERVATION_SUMMARY_SCHEMA,
       },
     },
+    store: false,
   }));
 
   const rawText = extractAssistantText(summaryResponse);
@@ -436,7 +523,9 @@ app.post("/api/chat/stream", async (req, res) => {
       previousResponseId,
       onToolEvent: (toolEvent) => {
         toolTrace.push(toolEvent);
-        writeEvent({ type: "tool", ...toolEvent });
+        // El navegador solo necesita el nombre para mostrar el progreso.
+        // Los argumentos y resultados permanecen en servidor (pueden contener PII).
+        writeEvent({ type: "tool", tool: toolEvent.tool });
       },
     });
 
@@ -463,7 +552,6 @@ app.post("/api/chat/stream", async (req, res) => {
       responseId: finalResponse.id,
       fullText: assistantReply,
       summary,
-      toolTrace,
     });
 
     res.end();
@@ -480,6 +568,16 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, model: MODEL, hasApiKey: Boolean(process.env.OPENAI_API_KEY) });
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor listo en http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Servidor listo en http://localhost:${PORT}`);
+  });
+}
+
+module.exports = {
+  TOOLS,
+  buildFunctionCallingRequest,
+  calculateNights,
+  executeFunctionCall,
+  runAssistantWithFunctionCalling,
+};

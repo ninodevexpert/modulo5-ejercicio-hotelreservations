@@ -3,88 +3,188 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Asistente de Reservas</title>
+    <meta name="theme-color" content="#173d35" />
+    <title>Maison · Asistente de Reservas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="reservation-panel" aria-label="Resumen de reserva">
-        <h1>Hotel Assistant</h1>
-        <p class="panel-subtitle">Base UI para el flujo con function calling.</p>
+    <div class="ambient ambient-left" aria-hidden="true"></div>
+    <div class="ambient ambient-right" aria-hidden="true"></div>
 
-        <section class="summary-card">
-          <h2>Resumen de reserva</h2>
-          <dl id="reservationSummary">
+    <div class="page">
+      <header class="brand-header">
+        <a class="brand" href="#" aria-label="Maison, inicio">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M4 19h16M6.5 19V9.5L12 5l5.5 4.5V19M9.5 19v-5h5v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="brand-name">Maison</span>
+          <span class="brand-divider"></span>
+          <span class="brand-caption">Hotel concierge</span>
+        </a>
+        <div class="availability"><span class="availability-dot"></span> Concierge disponible</div>
+      </header>
+
+      <main class="app-shell">
+        <section class="status-card panel" aria-labelledby="status-title">
+          <div class="status-visual" aria-hidden="true">
+            <span class="status-pulse"></span>
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M12 3a7 7 0 0 0-7 7v3.5L3.5 16h17L19 13.5V10a7 7 0 0 0-7-7ZM9.5 19h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="status-copy">
+            <div class="status-heading">
+              <p class="overline" id="status-title">Estado actual</p>
+              <span id="statusPhase" class="status-phase">En espera</span>
+            </div>
+            <p id="assistantStatus" aria-live="polite">Esperando consulta del usuario.</p>
+          </div>
+          <div class="status-progress" aria-hidden="true"><span></span></div>
+        </section>
+
+        <aside class="reservation-panel panel" aria-label="Resumen de reserva">
+          <div class="panel-heading">
             <div>
-              <dt>Ciudad</dt>
+              <p class="overline">Tu estancia</p>
+              <h1>Resumen de reserva</h1>
+            </div>
+            <span class="summary-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </div>
+
+          <dl id="reservationSummary" class="reservation-summary">
+            <div class="summary-destination summary-item">
+              <dt><span class="field-icon" aria-hidden="true">⌖</span> Destino</dt>
               <dd data-field="city">Pendiente</dd>
             </div>
-            <div>
-              <dt>Check-in</dt>
-              <dd data-field="checkIn">Pendiente</dd>
+
+            <div class="date-group summary-group">
+              <div class="summary-item">
+                <dt>Check-in</dt>
+                <dd data-field="checkIn">Pendiente</dd>
+              </div>
+              <span class="date-arrow" aria-hidden="true">→</span>
+              <div class="summary-item">
+                <dt>Check-out</dt>
+                <dd data-field="checkOut">Pendiente</dd>
+              </div>
             </div>
-            <div>
-              <dt>Check-out</dt>
-              <dd data-field="checkOut">Pendiente</dd>
+
+            <div class="details-group summary-group">
+              <div class="summary-item">
+                <dt><span class="field-icon" aria-hidden="true">♙</span> Huéspedes</dt>
+                <dd data-field="guests">Pendiente</dd>
+              </div>
+              <div class="summary-item">
+                <dt><span class="field-icon" aria-hidden="true">☾</span> Noches</dt>
+                <dd data-field="nights">Pendiente</dd>
+              </div>
             </div>
-            <div>
-              <dt>Huéspedes</dt>
-              <dd data-field="guests">Pendiente</dd>
-            </div>
-            <div>
-              <dt>Hotel</dt>
+
+            <div class="summary-item summary-wide">
+              <dt><span class="field-icon" aria-hidden="true">◇</span> Hotel</dt>
               <dd data-field="hotel">Pendiente</dd>
             </div>
-            <div>
-              <dt>Tipo de habitación</dt>
+            <div class="summary-item summary-wide">
+              <dt><span class="field-icon" aria-hidden="true">▱</span> Tipo de habitación</dt>
               <dd data-field="roomType">Pendiente</dd>
             </div>
-            <div>
-              <dt>Noches</dt>
-              <dd data-field="nights">Pendiente</dd>
+
+            <div class="price-block">
+              <div>
+                <dt>Precio estimado</dt>
+                <dd data-field="estimatedPrice">Pendiente</dd>
+              </div>
+              <span class="price-note">Total orientativo</span>
             </div>
-            <div>
-              <dt>Precio estimado</dt>
-              <dd data-field="estimatedPrice">Pendiente</dd>
+
+            <div class="confirmation-block">
+              <div class="summary-item">
+                <dt>Reservation ID</dt>
+                <dd data-field="reservationId">Pendiente</dd>
+              </div>
+              <div class="summary-item status-summary-item">
+                <dt>Estado</dt>
+                <dd data-field="status">Pendiente</dd>
+              </div>
             </div>
           </dl>
-        </section>
 
-        <section class="status-card">
-          <h3>Estado actual</h3>
-          <p id="assistantStatus">Esperando consulta del usuario.</p>
-        </section>
-      </aside>
-
-      <main class="chat-panel" aria-label="Chat asistente">
-        <header class="chat-header">
-          <div>
-            <p class="eyebrow">Asistente virtual</p>
-            <h2>Reserva tu hotel</h2>
+          <div class="privacy-note">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 10V8a5 5 0 0 1 10 0v2M5 10h14v10H5V10Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Tus datos se utilizan únicamente para gestionar esta consulta.</span>
           </div>
-          <span class="temperature-badge">Temp: 0.3</span>
-        </header>
+        </aside>
 
-        <section id="chatMessages" class="chat-messages" aria-live="polite"></section>
+        <section class="chat-panel panel" aria-label="Chat asistente">
+          <header class="chat-header">
+            <div class="concierge-profile">
+              <span class="concierge-avatar" aria-hidden="true">M</span>
+              <div>
+                <p class="overline">Asistente virtual</p>
+                <h2>Tu concierge personal</h2>
+              </div>
+            </div>
+            <div class="chat-meta">
+              <span class="secure-label">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M7 10V8a5 5 0 0 1 10 0v2M5 10h14v10H5V10Z" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+                Conversación segura
+              </span>
+              <span class="temperature-badge">Responses API</span>
+            </div>
+          </header>
 
-        <div class="quick-actions" aria-label="Sugerencias rápidas">
-          <button type="button" data-prompt="Quiero un hotel en Madrid del 20 al 23 de marzo para 2 personas.">Madrid · 2 huéspedes</button>
-          <button type="button" data-prompt="Busco habitación doble en Barcelona del 5 al 7 de abril.">Barcelona · Doble</button>
-          <button type="button" data-prompt="Necesito una suite en Valencia para 3 noches.">Valencia · Suite</button>
-        </div>
+          <section id="chatMessages" class="chat-messages" aria-live="polite"></section>
 
-        <form id="chatForm" class="chat-input" autocomplete="off">
-          <label for="messageInput" class="sr-only">Escribe tu mensaje</label>
-          <input
-            id="messageInput"
-            name="message"
-            type="text"
-            placeholder="Ej: Quiero reservar en Sevilla del 10 al 13 para 2 huéspedes"
-            required
-          />
-          <button type="submit">Enviar</button>
-        </form>
+          <div class="chat-controls">
+            <div class="quick-actions" aria-label="Sugerencias rápidas">
+              <p>Prueba con una sugerencia</p>
+              <div class="quick-action-list">
+                <button type="button" data-prompt="Quiero un hotel en Madrid del 20 al 23 de marzo para 2 personas."><span aria-hidden="true">⌖</span> Madrid · 2 huéspedes</button>
+                <button type="button" data-prompt="Busco habitación doble en Barcelona del 5 al 7 de abril."><span aria-hidden="true">◇</span> Barcelona · Doble</button>
+                <button type="button" data-prompt="Necesito una suite en Valencia para 3 noches."><span aria-hidden="true">✦</span> Valencia · Suite</button>
+              </div>
+            </div>
+
+            <form id="chatForm" class="chat-input" autocomplete="off">
+              <label for="messageInput" class="sr-only">Escribe tu mensaje</label>
+              <div class="input-field">
+                <input
+                  id="messageInput"
+                  name="message"
+                  type="text"
+                  placeholder="Cuéntame cómo imaginas tu próxima estancia..."
+                  required
+                />
+                <span class="input-hint">Intro para enviar</span>
+              </div>
+              <button type="submit" aria-label="Enviar mensaje">
+                <span>Enviar</span>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="m5 12 14-7-4.5 14-2.8-5.1L5 12Zm6.7 1.9L19 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </form>
+          </div>
+        </section>
       </main>
+
+      <footer class="page-footer">
+        <span>Maison</span>
+        <p>Una estancia excepcional comienza con una buena conversación.</p>
+      </footer>
     </div>
 
     <script src="app.js" defer></script>

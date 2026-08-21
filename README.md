@@ -1,26 +1,97 @@
-# modulo5-ejercicio-hotelreservations
+# Asistente de reservas — plantilla de inicio
 
-Edición 2: Ejercicio 1 Reserva de hoteles.
+Proyecto base para practicar **OpenAI Responses API**, **function calling**,
+continuidad multi-turn y **Structured Outputs**.
 
-## Estado actual (fase 1)
+La interfaz y la estructura principal del backend ya están preparadas. El
+objetivo del ejercicio es completar únicamente la integración con OpenAI y la
+orquestación de las tools.
 
-Implementación de **solo UI** para un asistente de reservas hoteleras:
+## Qué incluye la plantilla
 
-- Chat conversacional (usuario/asistente)
-- Respuestas simuladas para flujo de disponibilidad, precio y confirmación
-- Panel lateral de resumen de reserva que se actualiza desde el texto del chat
-- Acciones rápidas para iniciar conversaciones de ejemplo
+- UI completa de chat, resumen de reserva y monitor de estado.
+- Backend Express y endpoint NDJSON `POST /api/chat/stream`.
+- Cliente oficial de OpenAI configurado mediante variables de entorno.
+- Catálogo de hoteles y lógica de negocio mock.
+- Funciones locales listas para usar:
+  - `check_availability`
+  - `get_room_price`
+  - `create_reservation`
+- Definiciones estrictas de las tres tools.
+- JSON Schema del resumen de reserva.
+- Helpers de parsing, configuración y extracción de respuestas.
+- Tests de la base y tests pendientes que marcan los objetivos del ejercicio.
 
-No hay integración con backend, OpenAI API ni function calling real todavía.
+## Trabajo del alumno
 
-## Ejecutar la UI
+Busca `TODO` en [server.js](./server.js). Debes completar tres bloques:
 
-Como es una UI en HTML/CSS/JS vanilla, puedes abrir `index.html` directamente en el navegador.
+1. **Loop de function calling**
+   - Primera llamada a `client.responses.create`.
+   - Lectura de los elementos `function_call`.
+   - Continuación mediante `previous_response_id`.
+   - Límite de rondas para evitar loops infinitos.
 
-También puedes levantar un servidor estático simple desde la carpeta del proyecto, por ejemplo:
+2. **Ejecución de tools**
+   - Parsear `call.arguments`.
+   - Localizar y ejecutar el handler correspondiente.
+   - Crear resultados estables de éxito o error.
+   - Conservar el `call_id` al construir cada `function_call_output`.
+
+3. **Resumen estructurado**
+   - Nueva llamada a Responses API.
+   - Configurar `text.format` con `json_schema`.
+   - Utilizar `RESERVATION_SUMMARY_SCHEMA` y `strict: true`.
+   - Devolver `Pendiente` cuando falte información.
+
+No es necesario modificar la UI ni crear una base de datos.
+
+## Instalación
 
 ```bash
-python3 -m http.server 8080
+npm install
+cp .env.example .env
 ```
 
-Y abrir `http://localhost:8080`.
+Completa tu clave en `.env`:
+
+```env
+OPENAI_API_KEY=tu_api_key
+OPENAI_MODEL=gpt-5-mini
+PORT=3000
+```
+
+Inicia la aplicación:
+
+```bash
+npm run dev
+```
+
+Abre [http://localhost:3000](http://localhost:3000).
+
+## Contrato con el frontend
+
+El backend debe mantener estos eventos NDJSON:
+
+- `status`: actualización de fase.
+- `tool`: nombre de la función que se está ejecutando.
+- `delta`: fragmento de texto del asistente.
+- `done`: respuesta completa, `responseId` y resumen.
+- `error`: error recuperable mostrado en el chat.
+
+El frontend ya conserva el último `responseId` y lo envía como
+`previousResponseId` en el siguiente turno.
+
+## Tests
+
+```bash
+npm test
+```
+
+Al inicio deben pasar los tests de infraestructura y aparecer tres tests
+marcados como `TODO`. Cuando completes el ejercicio, sustituye esos tests
+pendientes por comprobaciones reales del loop, las tools y el resumen.
+
+## Referencia
+
+[Function calling — documentación oficial de OpenAI](https://developers.openai.com/api/docs/guides/function-calling)

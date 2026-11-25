@@ -3,6 +3,7 @@ require("dotenv").config();
 const path = require("path");
 const express = require("express");
 const OpenAI = require("openai");
+const { SCOPE_INSTRUCTIONS, classifyMessageScope } = require("./alcance-jev");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -60,6 +61,7 @@ Reglas operativas:
    - Presenta los datos que faltan mediante una lista numerada.
    - Usa **negrita** para nombres de hotel, precios y acciones importantes.
    - No uses tablas.
+${SCOPE_INSTRUCTIONS}
 `;
 
 // Definición de tools para Responses API (function calling).
@@ -516,6 +518,29 @@ app.post("/api/chat/stream", async (req, res) => {
   const toolTrace = [];
 
   try {
+    // Puerta de alcance. Prompt + llamada a Jev están definidos en alcance-jev.js.
+    // Si el mensaje no es una reserva, no se llama a OpenAI ni se toca el resumen.
+    writeEvent({ type: "status", message: "Comprobando alcance de la consulta..." });
+    const scope = await classifyMessageScope(message);
+
+    if (!scope.inScope) {
+      writeEvent({ type: "status", message: "Consulta fuera del alcance de reservas." });
+
+      for (const delta of streamChunk(scope.reply)) {
+        writeEvent({ type: "delta", delta });
+        await sleep(20);
+      }
+
+      writeEvent({
+        type: "done",
+        responseId: previousResponseId,
+        fullText: scope.reply,
+        summary: null,
+      });
+      res.end();
+      return;
+    }
+
     writeEvent({ type: "status", message: "Consultando modelo..." });
 
     const finalResponse = await runAssistantWithFunctionCalling({
